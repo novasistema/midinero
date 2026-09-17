@@ -7,6 +7,7 @@ import {
   Trash2, 
   Edit3, 
   ArrowUpDown,
+  RotateCcw,
   ShoppingCart,
   HeartPulse,
   Receipt,
@@ -28,6 +29,7 @@ interface TransactionsViewProps {
   onAddTransaction: () => void;
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
+  onClearAllTransactions?: () => void;
 }
 
 const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
@@ -49,6 +51,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onAddTransaction,
   onEditTransaction,
   onDeleteTransaction,
+  onClearAllTransactions,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -232,6 +235,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           <span>
             Mostrando {filteredTransactions.length} de {transactions.length} registros
           </span>
+          {onClearAllTransactions && transactions.length > 0 && (
+            <button
+              id="btn-clear-all-transactions-view"
+              onClick={onClearAllTransactions}
+              className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 px-2.5 py-1 rounded-lg transition flex items-center gap-1 text-[11px] font-medium border border-rose-500/20"
+              title="Borrar todas las transacciones para iniciar desde cero"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Borrar todas ({transactions.length})
+            </button>
+          )}
         </div>
 
         {filteredTransactions.length > 0 ? (

@@ -9,6 +9,7 @@ import {
   Download, 
   Upload, 
   RotateCcw,
+  Trash2,
   Check
 } from 'lucide-react';
 import { UserSettings } from '../types';
@@ -19,6 +20,7 @@ interface SettingsViewProps {
   onExportData: () => void;
   onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onResetData: () => void;
+  onClearAllData?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -27,6 +29,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onExportData,
   onImportData,
   onResetData,
+  onClearAllData,
 }) => {
   return (
     <div className="space-y-6 pb-20 md:pb-6">
@@ -144,10 +147,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Backup & Data Sync Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
         <h2 className="font-bold text-sm text-slate-200 uppercase tracking-wider text-xs flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-teal-400" /> Copia de Seguridad & Datos
+          <RefreshCw className="w-4 h-4 text-teal-400" /> Copia de Seguridad & Gestión de Datos
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
           <button
             id="btn-export-json"
             onClick={onExportData}
@@ -169,11 +172,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             id="btn-reset-factory-data"
             onClick={onResetData}
-            className="p-3 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+            className="p-3 bg-amber-950/30 hover:bg-amber-900/50 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+            title="Restablece datos de muestra de fábrica con moneda y categorías predeterminadas"
           >
             <RotateCcw className="w-4 h-4" />
-            Restablecer de Fábrica
+            Restablecer Datos de Fábrica
           </button>
+
+          {onClearAllData && (
+            <button
+              id="btn-clear-all-data-scratch"
+              onClick={onClearAllData}
+              className="p-3 bg-rose-950/40 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+              title="Elimina todos los datos existentes para empezar completamente vacío desde cero"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              Borrar Todo / Empezar de Cero
+            </button>
+          )}
         </div>
       </div>
     </div>

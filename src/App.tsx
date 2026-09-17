@@ -318,6 +318,60 @@ export default function App() {
     });
   };
 
+  // Clear all transactions only
+  const handleClearAllTransactions = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '¿Borrar todas las transacciones?',
+      message:
+        '¿Deseas eliminar todo el historial de transacciones (ingresos, gastos e impuestos)? La lista quedará vacía (0 registros) para que registres únicamente tus propios movimientos.',
+      confirmText: 'Sí, Vaciar Transacciones',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      iconType: 'delete',
+      onConfirm: () => {
+        try {
+          setTransactions([]);
+          localStorage.setItem('midinero_transactions', JSON.stringify([]));
+          syncManager.notifyUpdate('DATA_UPDATED');
+          showToast('Historial de transacciones vaciado por completo', 'info');
+        } catch (err) {
+          console.error('Error al vaciar transacciones:', err);
+          showToast('Error al vaciar transacciones', 'error');
+        }
+      },
+    });
+  };
+
+  // Clear all data to start completely from zero
+  const handleClearAllData = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '¿Iniciar de cero completamente?',
+      message:
+        'Esta acción borrará todas las transacciones, todas las metas de ahorro y presupuestos para que empieces tu contabilidad completamente vacía desde cero (0 registros).',
+      confirmText: 'Borrar Todo e Iniciar de Cero',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      iconType: 'delete',
+      onConfirm: () => {
+        try {
+          setTransactions([]);
+          setBudgets([]);
+          setSavingsGoals([]);
+          localStorage.setItem('midinero_transactions', JSON.stringify([]));
+          localStorage.setItem('midinero_budgets', JSON.stringify([]));
+          localStorage.setItem('midinero_savings_goals', JSON.stringify([]));
+          syncManager.notifyUpdate('DATA_UPDATED');
+          showToast('¡Se han borrado todos los datos! La aplicación está lista desde cero.', 'success');
+        } catch (err) {
+          console.error('Error al vaciar todos los datos:', err);
+          showToast('Error al vaciar los datos', 'error');
+        }
+      },
+    });
+  };
+
   const isDark = settings.theme === 'dark';
 
   return (
@@ -361,6 +415,7 @@ export default function App() {
               setIsAddModalOpen(true);
             }}
             onDeleteTransaction={handleDeleteTransaction}
+            onClearAllTransactions={handleClearAllTransactions}
           />
         )}
 
@@ -394,6 +449,7 @@ export default function App() {
             onExportData={handleExportData}
             onImportData={handleImportData}
             onResetData={handleResetData}
+            onClearAllData={handleClearAllData}
           />
         )}
       </main>
