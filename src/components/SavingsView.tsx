@@ -13,7 +13,8 @@ import {
   CheckCircle2, 
   X,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  ArrowLeftRight
 } from 'lucide-react';
 import { SavingsGoal, UserSettings } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -24,6 +25,7 @@ interface SavingsViewProps {
   onAddGoal: (goal: Omit<SavingsGoal, 'id'>) => void;
   onUpdateGoal: (goal: SavingsGoal) => void;
   onDeleteGoal: (id: string) => void;
+  onOpenTransferModal?: (sourceGoalId?: string) => void;
 }
 
 export const SavingsView: React.FC<SavingsViewProps> = ({
@@ -32,6 +34,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
   onAddGoal,
   onUpdateGoal,
   onDeleteGoal,
+  onOpenTransferModal,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [depositModalGoal, setDepositModalGoal] = useState<SavingsGoal | null>(null);
@@ -124,13 +127,29 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="py-2.5 px-4 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 shadow-lg shadow-teal-900/20 w-fit"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Meta de Ahorro
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenTransferModal && (
+            <button
+              id="btn-header-transfer-cajas"
+              onClick={() => onOpenTransferModal()}
+              disabled={goals.length === 0}
+              className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 text-teal-300 font-bold rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 shadow-sm"
+              title="Transferir fondos entre cajas de ahorro o con tu cuenta principal"
+            >
+              <ArrowLeftRight className="w-4 h-4 text-teal-400" />
+              Transferir entre Cajas
+            </button>
+          )}
+
+          <button
+            id="btn-header-new-goal"
+            onClick={() => setIsModalOpen(true)}
+            className="py-2.5 px-4 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 shadow-lg shadow-teal-900/20"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva Meta de Ahorro
+          </button>
+        </div>
       </div>
 
       {/* KPI Overview */}
@@ -247,13 +266,25 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
               </div>
 
               {/* Action */}
-              <div className="pt-2">
+              <div className="pt-2 grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setDepositModalGoal(goal)}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700"
+                  id={`btn-card-transfer-${goal.id}`}
+                  onClick={() => onOpenTransferModal && onOpenTransferModal(goal.id)}
+                  className="py-2 px-2 bg-teal-950/40 hover:bg-teal-900/60 border border-teal-500/30 text-teal-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                  title="Transferir saldo de esta caja hacia otra caja o cuenta"
                 >
-                  <ArrowUpRight className="w-4 h-4 text-teal-400" />
-                  Añadir / Retirar Aportación
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-teal-400" />
+                  Transferir
+                </button>
+
+                <button
+                  id={`btn-card-deposit-${goal.id}`}
+                  onClick={() => setDepositModalGoal(goal)}
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700"
+                  title="Aportación o retiro rápido"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5 text-teal-400" />
+                  Aporte / Retiro
                 </button>
               </div>
             </div>

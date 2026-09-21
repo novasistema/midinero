@@ -10,9 +10,12 @@ import {
   CategoryBudget, 
   SavingsGoal, 
   UserSettings, 
-  CategoryId 
+  CategoryId,
+  TransferSavingsPayload 
 } from './types';
 import { syncManager } from './utils/sync';
+import { formatCurrency } from './utils/formatters';
+import confetti from 'canvas-confetti';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { TransactionsView } from './components/TransactionsView';
@@ -21,6 +24,7 @@ import { BudgetsView } from './components/BudgetsView';
 import { SavingsView } from './components/SavingsView';
 import { SettingsView } from './components/SettingsView';
 import { TransactionModal } from './components/TransactionModal';
+import { TransferModal } from './components/TransferModal';
 import { QuickAiInputModal } from './components/QuickAiInputModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
@@ -70,6 +74,8 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferInitialSourceId, setTransferInitialSourceId] = useState<string | undefined>(undefined);
 
   // Custom confirmation dialog state (replaces blocked window.confirm in iframe)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -232,6 +238,169 @@ export default function App() {
         showToast('Meta de ahorro eliminada', 'info');
       },
     });
+  };
+
+  // Transfer between Cajas de Ahorro
+  const handleOpenTransfer = (sourceGoalId?: string) => {
+    if (savingsGoals.length === 0) {
+      showToast('Crea al menos una meta o caja de ahorro para realizar transferencias', 'info');
+      setActiveTab('ahorros');
+      return;
+    }
+    setTransferInitialSourceId(sourceGoalId);
+    setIsTransferModalOpen(true);
+  };
+
+  const handleConfirmTransfer = (payload: TransferSavingsPayload) => {
+    try {
+      if (payload.type === 'between_goals') {
+        const source = savingsGoals.find((g) => g.id === payload.sourceGoalId);
+        const target = savingsGoals.find((g) => g.id === payload.targetGoalId);
+
+        if (!source || !target) {
+          showToast('Error: Cajas de ahorro no encontradas', 'error');
+          return;
+        }
+
+        if (payload.amount > source.currentAmount) {
+          showToast(`El monto supera el saldo disponible (${formatCurrency(source.currentAmount, settings.currency)})`, 'error');
+          return;
+        }
+
+        // Update goals
+        const updatedGoals = savingsGoals.map((g) => {
+          if (g.id === source.id) {
+            return { ...g, currentAmount: Math.max(0, g.currentAmount - payload.amount) };
+          }
+          if (g.id === target.id) {
+            return { ...g, currentAmount: g.currentAmount + payload.amount };
+          }
+          return g;
+        });
+
+        setSavingsGoals(updatedGoals);
+
+        // Optionally record in ledger
+        if (payload.recordTransaction) {
+          const txOut: Transaction = {
+            id: `tx-transfer-out-${Date.now()}`,
+            type: 'gasto',
+            amount: payload.amount,
+            categoryId: 'inversiones',
+            subcategory: 'Transferencia Cajas',
+            description: `Transferencia salida: ${source.title} → ${target.title}`,
+            date: payload.date,
+            paymentMethod: 'transferencia',
+            tags: ['transferencia-caja', 'ahorro'],
+            notes: payload.notes || `Reasignación hacia ${target.title}`,
+          };
+
+          const txIn: Transaction = {
+            id: `tx-transfer-in-${Date.now() + 1}`,
+            type: 'ingreso',
+            amount: payload.amount,
+            categoryId: 'inversiones',
+            subcategory: 'Transferencia Cajas',
+            description: `Recepción fondos: ${target.title} desde ${source.title}`,
+            date: payload.date,
+            paymentMethod: 'transferencia',
+            tags: ['transferencia-caja', 'ahorro'],
+            notes: payload.notes || `Fondos recibidos desde ${source.title}`,
+          };
+
+          setTransactions((prev) => [txIn, txOut, ...prev]);
+        }
+
+        if (target.currentAmount + payload.amount >= target.targetAmount) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        showToast(
+          `¡Transferencia realizada! Se movieron ${formatCurrency(payload.amount, settings.currency)} de "${source.title}" a "${target.title}"`,
+          'success'
+        );
+      } else if (payload.type === 'to_main_account') {
+        const source = savingsGoals.find((g) => g.id === payload.sourceGoalId);
+        if (!source) {
+          showToast('Error: Caja de ahorro no encontrada', 'error');
+          return;
+        }
+
+        if (payload.amount > source.currentAmount) {
+          showToast(`El monto supera el saldo disponible (${formatCurrency(source.currentAmount, settings.currency)})`, 'error');
+          return;
+        }
+
+        const updatedGoals = savingsGoals.map((g) =>
+          g.id === source.id
+            ? { ...g, currentAmount: Math.max(0, g.currentAmount - payload.amount) }
+            : g
+        );
+        setSavingsGoals(updatedGoals);
+
+        if (payload.recordTransaction) {
+          const incomeTx: Transaction = {
+            id: `tx-withdraw-${Date.now()}`,
+            type: 'ingreso',
+            amount: payload.amount,
+            categoryId: 'inversiones',
+            subcategory: 'Retiro Caja Ahorro',
+            description: `Retiro de Caja: ${source.title} a saldo libre`,
+            date: payload.date,
+            paymentMethod: 'transferencia',
+            tags: ['retiro-caja', 'ahorro'],
+            notes: payload.notes || `Retiro de fondos desde ${source.title}`,
+          };
+          setTransactions((prev) => [incomeTx, ...prev]);
+        }
+
+        showToast(
+          `¡Retiro exitoso! ${formatCurrency(payload.amount, settings.currency)} transferidos a tu saldo disponible`,
+          'success'
+        );
+      } else if (payload.type === 'from_main_account') {
+        const target = savingsGoals.find((g) => g.id === payload.targetGoalId);
+        if (!target) {
+          showToast('Error: Caja de ahorro no encontrada', 'error');
+          return;
+        }
+
+        const updatedGoals = savingsGoals.map((g) =>
+          g.id === target.id
+            ? { ...g, currentAmount: g.currentAmount + payload.amount }
+            : g
+        );
+        setSavingsGoals(updatedGoals);
+
+        if (payload.recordTransaction) {
+          const expenseTx: Transaction = {
+            id: `tx-deposit-${Date.now()}`,
+            type: 'gasto',
+            amount: payload.amount,
+            categoryId: 'inversiones',
+            subcategory: 'Aporte Caja Ahorro',
+            description: `Aporte a Caja: ${target.title} desde saldo`,
+            date: payload.date,
+            paymentMethod: 'transferencia',
+            tags: ['aporte-caja', 'ahorro'],
+            notes: payload.notes || `Aporte de fondos a ${target.title}`,
+          };
+          setTransactions((prev) => [expenseTx, ...prev]);
+        }
+
+        if (target.currentAmount + payload.amount >= target.targetAmount) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        showToast(
+          `¡Aporte exitoso! ${formatCurrency(payload.amount, settings.currency)} transferidos a "${target.title}"`,
+          'success'
+        );
+      }
+    } catch (err) {
+      console.error('Error al transferir:', err);
+      showToast('Error al procesar la transferencia', 'error');
+    }
   };
 
   // Export / Import / Reset Data
@@ -399,6 +568,7 @@ export default function App() {
             }}
             onOpenAiModal={() => setIsAiModalOpen(true)}
             onNavigateTab={setActiveTab}
+            onOpenTransferModal={handleOpenTransfer}
           />
         )}
 
@@ -439,6 +609,7 @@ export default function App() {
             onAddGoal={handleAddSavingsGoal}
             onUpdateGoal={handleUpdateSavingsGoal}
             onDeleteGoal={handleDeleteSavingsGoal}
+            onOpenTransferModal={handleOpenTransfer}
           />
         )}
 
@@ -463,6 +634,16 @@ export default function App() {
         }}
         onSave={handleSaveTransaction}
         initialData={editingTx}
+      />
+
+      {/* Transfer Modal between Cajas de Ahorro */}
+      <TransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        goals={savingsGoals}
+        settings={settings}
+        initialSourceGoalId={transferInitialSourceId}
+        onConfirmTransfer={handleConfirmTransfer}
       />
 
       {/* AI Quick Assistant Modal */}

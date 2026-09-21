@@ -53,6 +53,18 @@ export interface SavingsGoal {
   notes?: string;
 }
 
+export type TransferSavingsType = 'between_goals' | 'to_main_account' | 'from_main_account';
+
+export interface TransferSavingsPayload {
+  type: TransferSavingsType;
+  sourceGoalId?: string;
+  targetGoalId?: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  recordTransaction?: boolean;
+}
+
 export interface UserSettings {
   currency: string; // 'EUR', 'USD', 'MXN', 'PEN', 'ARS', etc.
   currencySymbol: string;

@@ -18,7 +18,8 @@ import {
   MoreHorizontal,
   ChevronRight,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  ArrowLeftRight
 } from 'lucide-react';
 import { Transaction, CategoryBudget, SavingsGoal, UserSettings } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -32,6 +33,7 @@ interface DashboardProps {
   onOpenAddModal: (type?: 'ingreso' | 'gasto') => void;
   onOpenAiModal: () => void;
   onNavigateTab: (tab: string) => void;
+  onOpenTransferModal?: (sourceGoalId?: string) => void;
 }
 
 const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
@@ -55,6 +57,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenAddModal,
   onOpenAiModal,
   onNavigateTab,
+  onOpenTransferModal,
 }) => {
   const currentMonthKey = new Date().toISOString().substring(0, 7); // '2026-08'
 
@@ -417,12 +420,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </h3>
             <p className="text-xs text-slate-400">Progreso acumulado hacia tus objetivos</p>
           </div>
-          <button
-            onClick={() => onNavigateTab('ahorros')}
-            className="text-xs font-bold text-teal-400 hover:underline"
-          >
-            Gestionar Metas
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenTransferModal && savingsGoals.length > 0 && (
+              <button
+                id="btn-dashboard-transfer-cajas"
+                onClick={() => onOpenTransferModal()}
+                className="text-xs font-bold text-teal-300 hover:text-teal-200 bg-teal-950/50 hover:bg-teal-900/70 border border-teal-500/30 px-2.5 py-1 rounded-lg transition flex items-center gap-1 shadow-sm"
+                title="Transferir fondos entre cajas de ahorro"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                Transferir
+              </button>
+            )}
+            <button
+              onClick={() => onNavigateTab('ahorros')}
+              className="text-xs font-bold text-teal-400 hover:underline"
+            >
+              Gestionar Metas
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
