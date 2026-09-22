@@ -41,6 +41,21 @@ export interface CategoryBudget {
   limit: number;
 }
 
+export type InvestmentAssetType = 'crypto' | 'bono' | 'accion' | 'fondo' | 'metal' | 'otro';
+
+export interface InvestmentDetails {
+  assetType: InvestmentAssetType;
+  ticker: string; // Ej: BTC, ETH, TLT, BND, US10Y, AL30, GD30, SPY, PAXG
+  assetName: string; // Ej: Bitcoin, Bono del Tesoro EE.UU. (TLT)
+  quantity: number; // Cantidad de monedas, títulos o acciones
+  unitBuyPrice?: number; // Precio promedio de compra en USD/moneda base
+  currentUnitPrice: number; // Precio unitario de cotización actual
+  currency: string; // 'USD', etc.
+  lastUpdated: string; // ISO string de última cotización
+  change24hPercent?: number; // % cambio en últimas 24h
+  sourceName: string; // 'Binance' | 'Coinbase' | 'Mercado Renta Fija' | 'Mercado de Valores' | 'Manual'
+}
+
 export interface SavingsGoal {
   id: string;
   title: string;
@@ -51,6 +66,8 @@ export interface SavingsGoal {
   color: string;
   icon: string;
   notes?: string;
+  isInvestment?: boolean;
+  investmentDetails?: InvestmentDetails;
 }
 
 export type TransferSavingsType = 'between_goals' | 'to_main_account' | 'from_main_account';

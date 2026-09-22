@@ -1,6 +1,6 @@
 {
   "name": "MiDinero",
-  "description": "Sistema de finanzas personales para control de ingresos, gastos detallados, presupuestos, alertas, módulo de ahorro e inversión e informes comparativos mensuales.",
+  "description": "Sistema de finanzas personales para control de ingresos, gastos detallados, presupuestos, alertas, transferencias entre cajas de ahorro e inversión con cotizaciones automáticas en tiempo real (Binance y Bonos) e informes comparativos mensuales.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

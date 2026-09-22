@@ -444,14 +444,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {savingsGoals.map((goal) => {
             const pct = Math.min(100, (goal.currentAmount / goal.targetAmount) * 100);
+            const isInv = goal.isInvestment && goal.investmentDetails;
+            const inv = goal.investmentDetails;
+
             return (
               <div
                 key={goal.id}
-                className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2"
+                className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2 hover:border-slate-700 transition"
               >
                 <div className="flex items-center justify-between text-xs font-bold text-slate-200">
-                  <span className="truncate">{goal.title}</span>
-                  <span className="text-teal-400">{pct.toFixed(0)}%</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="truncate">{goal.title}</span>
+                    {isInv && (
+                      <span className="text-[9px] font-extrabold px-1 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800/40">
+                        {inv?.ticker} EN VIVO
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-teal-400 font-extrabold">{pct.toFixed(0)}%</span>
                 </div>
 
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -462,11 +472,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
 
                 <div className="flex justify-between text-[11px] text-slate-400 font-semibold">
-                  <span>{formatCurrency(goal.currentAmount, settings.currency)}</span>
+                  <span className="text-slate-200 font-bold">
+                    {formatCurrency(goal.currentAmount, settings.currency)}
+                  </span>
                   <span className="text-slate-500">
                     de {formatCurrency(goal.targetAmount, settings.currency)}
                   </span>
                 </div>
+
+                {isInv && inv && (
+                  <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-900 flex justify-between">
+                    <span>
+                      {inv.quantity} {inv.ticker}
+                    </span>
+                    <span className="text-teal-300 font-mono">
+                      ${inv.currentUnitPrice?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '---'} c/u
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}

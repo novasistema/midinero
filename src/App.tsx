@@ -52,7 +52,17 @@ export default function App() {
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(() => {
     try {
       const saved = localStorage.getItem('midinero_savings_goals');
-      return saved ? JSON.parse(saved) : INITIAL_SAVINGS_GOALS;
+      if (saved) {
+        const parsed: SavingsGoal[] = JSON.parse(saved);
+        // Asegurar que si el usuario no tiene metas de inversión en vivo, se agreguen Bitcoin y Bonos
+        const hasLiveInvestment = parsed.some((g) => g.isInvestment);
+        if (!hasLiveInvestment) {
+          const defaultInvestments = INITIAL_SAVINGS_GOALS.filter((g) => g.isInvestment);
+          return [...defaultInvestments, ...parsed];
+        }
+        return parsed;
+      }
+      return INITIAL_SAVINGS_GOALS;
     } catch {
       return INITIAL_SAVINGS_GOALS;
     }
@@ -222,6 +232,11 @@ export default function App() {
       prev.map((g) => (g.id === updatedGoal.id ? updatedGoal : g))
     );
     showToast('Meta de ahorro actualizada', 'success');
+  };
+
+  const handleUpdateAllSavingsGoals = (updatedGoals: SavingsGoal[]) => {
+    setSavingsGoals(updatedGoals);
+    showToast('Cotizaciones de inversión actualizadas en tiempo real', 'success');
   };
 
   const handleDeleteSavingsGoal = (id: string) => {
@@ -610,6 +625,7 @@ export default function App() {
             onUpdateGoal={handleUpdateSavingsGoal}
             onDeleteGoal={handleDeleteSavingsGoal}
             onOpenTransferModal={handleOpenTransfer}
+            onUpdateAllGoals={handleUpdateAllSavingsGoals}
           />
         )}
 
