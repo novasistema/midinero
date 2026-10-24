@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -19,24 +19,48 @@ import {
   ChevronRight,
   ShieldCheck,
   RefreshCw,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Clock,
+  CalendarCheck,
+  CheckCircle2,
+  Circle,
+  BellRing,
+  UtensilsCrossed,
+  Tag,
+  Lock,
+  Building,
+  Banknote
 } from 'lucide-react';
-import { Transaction, CategoryBudget, SavingsGoal, UserSettings } from '../types';
+import { 
+  Transaction, 
+  CategoryBudget, 
+  SavingsGoal, 
+  UserSettings, 
+  WeeklyTask, 
+  Category, 
+  MoneyAccount 
+} from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { CATEGORIES, getCategoryById } from '../data/categories';
+import { DEFAULT_CATEGORIES, getCategoryById } from '../data/categories';
 
 interface DashboardProps {
   transactions: Transaction[];
   budgets: CategoryBudget[];
   savingsGoals: SavingsGoal[];
   settings: UserSettings;
+  categories?: Category[];
+  weeklyTasks?: WeeklyTask[];
+  accounts?: MoneyAccount[];
+  vaultCount?: number;
   onOpenAddModal: (type?: 'ingreso' | 'gasto') => void;
   onOpenAiModal: () => void;
   onNavigateTab: (tab: string) => void;
   onOpenTransferModal?: (sourceGoalId?: string) => void;
+  onToggleTaskStatus?: (id: string) => void;
 }
 
 const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
+  UtensilsCrossed,
   ShoppingCart,
   HeartPulse,
   Receipt,
@@ -47,6 +71,7 @@ const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
   TrendingUp,
   Zap,
   MoreHorizontal,
+  Tag,
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -54,12 +79,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   budgets,
   savingsGoals,
   settings,
+  categories = DEFAULT_CATEGORIES,
+  weeklyTasks = [],
+  accounts = [],
+  vaultCount = 0,
   onOpenAddModal,
   onOpenAiModal,
   onNavigateTab,
   onOpenTransferModal,
+  onToggleTaskStatus,
 }) => {
   const currentMonthKey = new Date().toISOString().substring(0, 7); // '2026-08'
+  const todayDayOfWeek = new Date().getDay() === 0 ? 7 : new Date().getDay();
+  const dayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const todayTasks = weeklyTasks.filter((t) => t.dayOfWeek === todayDayOfWeek);
+  const pendingWeeklyTasks = weeklyTasks.filter((t) => t.status !== 'completada');
 
   // Filter current month transactions
   const currentMonthTxs = transactions.filter((t) => t.date.startsWith(currentMonthKey));
@@ -284,6 +318,162 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <PiggyBank className="w-4 h-4 text-teal-400" />
           Metas de Ahorro
         </button>
+      </div>
+
+      {/* Cuentas y Billeteras Snapshot (¿Cuánto tienes y cuánto te va quedando?) */}
+      {accounts && accounts.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                  Cuentas, Billeteras & Disponibilidad
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/40">
+                    {accounts.length} Cuentas Activas
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Total disponible en tus bancos, billeteras virtuales y efectivo
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onNavigateTab('boveda')}
+                className="text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
+                title="Ir a la Bóveda de Contraseñas"
+              >
+                <Lock className="w-3.5 h-3.5 text-teal-400" />
+                <span>Bóveda ({vaultCount})</span>
+              </button>
+              <button
+                onClick={() => onNavigateTab('cuentas')}
+                className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 self-start sm:self-auto hover:underline"
+              >
+                Ver Cuentas y Totales <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            {accounts.slice(0, 4).map((acc) => (
+              <div
+                key={acc.id}
+                onClick={() => onNavigateTab('cuentas')}
+                className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-400 font-semibold truncate mr-1">{acc.name}</span>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: acc.color }}
+                  />
+                </div>
+                <div className="text-base font-black font-mono text-white">
+                  {formatCurrency(acc.currentBalance, settings.currency)}
+                </div>
+                <span className="text-[10px] text-slate-500 uppercase font-medium mt-0.5">
+                  {acc.type}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Weekly Tasks Snapshot Widget */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-teal-500/10 text-teal-400">
+              <CalendarCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                Tareas Semanales y Agenda
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-800/40">
+                  {todayTasks.length > 0 ? `${todayTasks.length} para Hoy (${dayNames[todayDayOfWeek]})` : `${pendingWeeklyTasks.length} pendientes`}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">Organización del tiempo con alarmas y recordatorios</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigateTab('tareas')}
+            className="text-xs font-bold text-teal-400 hover:text-teal-300 flex items-center gap-1 self-start sm:self-auto hover:underline"
+          >
+            Ver Planificador Semanal <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {todayTasks.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+            {todayTasks.slice(0, 3).map((task) => {
+              const isDone = task.status === 'completada';
+              return (
+                <div
+                  key={task.id}
+                  className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 transition ${
+                    isDone
+                      ? 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      onClick={() => onToggleTaskStatus && onToggleTaskStatus(task.id)}
+                      className="text-slate-500 hover:text-teal-400 transition shrink-0"
+                    >
+                      {isDone ? (
+                        <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                      ) : (
+                        <Circle className="w-4 h-4" />
+                      )}
+                    </button>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-bold truncate ${isDone ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                        {task.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                        <span className="text-teal-300 font-semibold">{task.startTime || '09:00'}</span>
+                        <span>•</span>
+                        <span>{task.durationMinutes || 30} min</span>
+                        {task.hasReminder && (
+                          <>
+                            <span>•</span>
+                            <span className="text-amber-400 flex items-center gap-0.5 font-bold">
+                              <BellRing className="w-2.5 h-2.5" />
+                              Alarma
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
+                    {task.category}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+            <span>No tienes tareas pendientes agendadas para hoy. Tienes {pendingWeeklyTasks.length} tareas programadas para el resto de la semana.</span>
+            <button
+              onClick={() => onNavigateTab('tareas')}
+              className="text-teal-400 font-bold hover:underline shrink-0 ml-2"
+            >
+              + Agregar Tarea
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Category Breakdown + Recent Transactions */}

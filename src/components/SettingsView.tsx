@@ -8,9 +8,12 @@ import {
   RefreshCw, 
   Download, 
   Upload, 
-  RotateCcw,
-  Trash2,
-  Check
+  RotateCcw, 
+  Trash2, 
+  Check,
+  Layers,
+  Tag,
+  Clock
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -21,6 +24,8 @@ interface SettingsViewProps {
   onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onResetData: () => void;
   onClearAllData?: () => void;
+  onOpenCategoriesModal?: () => void;
+  onOpenTasksView?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -30,6 +35,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onImportData,
   onResetData,
   onClearAllData,
+  onOpenCategoriesModal,
+  onOpenTasksView,
 }) => {
   return (
     <div className="space-y-6 pb-20 md:pb-6">
@@ -39,7 +46,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <SettingsIcon className="w-6 h-6 text-teal-400" /> Configuración de la Aplicación
         </h1>
         <p className="text-xs sm:text-sm text-slate-400">
-          Personaliza moneda, alertas de presupuesto, tema y copias de seguridad
+          Personaliza moneda, categorías y subcategorías, alertas, tema y copias de seguridad
         </p>
       </div>
 
@@ -100,6 +107,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Categories & Subcategories Quick Management */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-sm text-slate-200 uppercase tracking-wider text-xs flex items-center gap-2">
+              <Layers className="w-4 h-4 text-teal-400" /> Clasificación y Subcategorías Personalizadas
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Administra las subcategorías en Comida, Salud, Transporte, Impuestos, Ocio y crea nuevas categorías
+            </p>
+          </div>
+
+          {onOpenCategoriesModal && (
+            <button
+              onClick={onOpenCategoriesModal}
+              className="py-2.5 px-4 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm shrink-0 self-start sm:self-auto"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Gestionar Subcategorías
+            </button>
+          )}
         </div>
       </div>
 
@@ -190,6 +221,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Borrar Todo / Empezar de Cero
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Brand & App Info Card */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6">
+        <div className="w-24 sm:w-28 rounded-2xl overflow-hidden shadow-lg border border-teal-500/30 bg-slate-950 shrink-0">
+          <img
+            src="/assets/aistudio/logo_control_0bd5bb22.jpg"
+            alt="CONTROL Logo"
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="space-y-2 text-center sm:text-left flex-1">
+          <div className="flex items-center justify-center sm:justify-start gap-2">
+            <span className="text-xl sm:text-2xl font-black text-white tracking-wider">
+              CONTROL
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 text-[10px] font-extrabold uppercase border border-teal-500/30">
+              v2.5 Oficial
+            </span>
+          </div>
+          <p className="text-xs font-bold text-teal-400 uppercase tracking-widest">
+            Finanzas y Tareas Diarias
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Plataforma todo-en-uno para administrar tus finanzas personales, billeteras y bancos, bóveda protegida de contraseñas, subcategorías de gastos y agenda de tareas semanales con alarmas y recordatorios de tiempo.
+          </p>
         </div>
       </div>
     </div>

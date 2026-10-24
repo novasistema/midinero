@@ -17,22 +17,29 @@ import {
   Wallet,
   TrendingUp,
   Zap,
-  MoreHorizontal
+  MoreHorizontal,
+  UtensilsCrossed,
+  Tag,
+  Layers
 } from 'lucide-react';
-import { Transaction, CategoryId, UserSettings } from '../types';
+import { Transaction, CategoryId, UserSettings, Category, MoneyAccount } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { CATEGORIES, getCategoryById } from '../data/categories';
+import { DEFAULT_CATEGORIES, getCategoryById } from '../data/categories';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
   settings: UserSettings;
+  categories?: Category[];
+  accounts?: MoneyAccount[];
   onAddTransaction: () => void;
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   onClearAllTransactions?: () => void;
+  onOpenCategoriesModal?: () => void;
 }
 
 const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
+  UtensilsCrossed,
   ShoppingCart,
   HeartPulse,
   Receipt,
@@ -43,22 +50,43 @@ const CATEGORY_ICONS: Record<string, React.FC<{ className?: string }>> = {
   TrendingUp,
   Zap,
   MoreHorizontal,
+  Tag,
 };
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
   transactions,
   settings,
+  categories = DEFAULT_CATEGORIES,
+  accounts = [],
   onAddTransaction,
   onEditTransaction,
   onDeleteTransaction,
   onClearAllTransactions,
+  onOpenCategoriesModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedPayment, setSelectedPayment] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // Compute available subcategories based on selected category
+  const availableSubcategories = useMemo(() => {
+    if (selectedCategory === 'all') {
+      // Collect all unique subcategories from all categories and transactions
+      const set = new Set<string>();
+      categories.forEach(c => c.subcategories.forEach(s => set.add(s)));
+      transactions.forEach(t => {
+        if (t.subcategory) set.add(t.subcategory);
+      });
+      return Array.from(set).sort();
+    } else {
+      const cat = categories.find(c => c.id === selectedCategory || (selectedCategory === 'comida' && c.id === 'supermercado') || (selectedCategory === 'salud' && c.id === 'farmacia'));
+      return cat ? cat.subcategories : [];
+    }
+  }, [selectedCategory, categories, transactions]);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
@@ -68,9 +96,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         (tx.notes && tx.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (tx.subcategory && tx.subcategory.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      // Category filter
+      // Category filter (handling aliases)
       const matchesCategory =
-        selectedCategory === 'all' || tx.categoryId === selectedCategory;
+        selectedCategory === 'all' ||
+        tx.categoryId === selectedCategory ||
+        (selectedCategory === 'comida' && tx.categoryId === 'supermercado') ||
+        (selectedCategory === 'salud' && tx.categoryId === 'farmacia');
+
+      // Subcategory filter
+      const matchesSubcategory =
+        selectedSubcategory === 'all' ||
+        (tx.subcategory && tx.subcategory.toLowerCase() === selectedSubcategory.toLowerCase());
 
       // Type filter
       const matchesType = selectedType === 'all' || tx.type === selectedType;
@@ -79,7 +115,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       const matchesPayment =
         selectedPayment === 'all' || tx.paymentMethod === selectedPayment;
 
-      return matchesSearch && matchesCategory && matchesType && matchesPayment;
+      return matchesSearch && matchesCategory && matchesSubcategory && matchesType && matchesPayment;
     }).sort((a, b) => {
       if (sortBy === 'date') {
         const timeA = new Date(a.date).getTime();
@@ -89,14 +125,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         return sortOrder === 'desc' ? b.amount - a.amount : a.amount - b.amount;
       }
     });
-  }, [transactions, searchTerm, selectedCategory, selectedType, selectedPayment, sortBy, sortOrder]);
+  }, [transactions, searchTerm, selectedCategory, selectedSubcategory, selectedType, selectedPayment, sortBy, sortOrder]);
 
   const exportToCSV = () => {
-    const headers = ['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto ($)', 'Método de Pago', 'Notas'];
+    const headers = ['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Descripción', 'Monto ($)', 'Método de Pago', 'Notas'];
     const rows = filteredTransactions.map((tx) => [
       tx.date,
       tx.type,
-      getCategoryById(tx.categoryId).name,
+      getCategoryById(tx.categoryId, categories).name,
+      `"${(tx.subcategory || '').replace(/"/g, '""')}"`,
       `"${tx.description.replace(/"/g, '""')}"`,
       tx.amount.toFixed(2),
       tx.paymentMethod,
@@ -107,7 +144,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `MiDinero_Registros_${new Date().toISOString().substring(0, 10)}.csv`);
+    link.setAttribute('download', `Control_Registros_${new Date().toISOString().substring(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -120,17 +157,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-100">Registros de Transacciones</h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Historial completo detallado de compras, ingresos e impuestos
+            Historial con subcategorías detalladas (Comida, Salud, Transporte, Impuestos, Ocio...)
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenCategoriesModal && (
+            <button
+              onClick={onOpenCategoriesModal}
+              className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-xs transition flex items-center gap-1.5 border border-slate-700"
+              title="Administrar categorías y subcategorías personalizadas"
+            >
+              <Layers className="w-4 h-4 text-teal-400" />
+              Subcategorías
+            </button>
+          )}
+
           <button
             onClick={exportToCSV}
-            className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-xs transition flex items-center gap-1.5 border border-slate-700"
+            className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-xs transition flex items-center gap-1.5 border border-slate-700"
           >
             <Download className="w-4 h-4 text-teal-400" />
-            Exportar CSV
+            CSV
           </button>
 
           <button
@@ -151,25 +199,45 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por descripción, nota o palabra clave (ej. Mercadona, IRPF, Farmacia)..."
+            placeholder="Buscar por descripción, subcategoría (ej. Supermercado, Farmacia, Gasolina, IRPF)..."
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500"
           />
         </div>
 
         {/* Filter Dropdowns */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
           {/* Category Filter */}
           <div>
             <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Categoría</label>
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setSelectedSubcategory('all'); // Reset subcategory when category changes
+              }}
               className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl p-2 focus:outline-none focus:border-teal-500"
             >
               <option value="all">Todas las categorías</option>
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subcategory Filter (Requested Feature) */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Subcategoría</label>
+            <select
+              value={selectedSubcategory}
+              onChange={(e) => setSelectedSubcategory(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl p-2 focus:outline-none focus:border-teal-500"
+            >
+              <option value="all">Todas las subcat.</option>
+              {availableSubcategories.map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub}
                 </option>
               ))}
             </select>
@@ -206,7 +274,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
 
           {/* Sort Control */}
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ordenar Por</label>
             <div className="flex gap-1">
               <select
@@ -251,15 +319,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         {filteredTransactions.length > 0 ? (
           <div className="divide-y divide-slate-800">
             {filteredTransactions.map((tx) => {
-              const category = getCategoryById(tx.categoryId);
-              const IconComp = CATEGORY_ICONS[category.icon] || MoreHorizontal;
+              const category = getCategoryById(tx.categoryId, categories);
+              const IconComp = CATEGORY_ICONS[category.icon] || Tag;
+              const matchingAccount = accounts.find(a => a.id === tx.accountId);
 
               return (
                 <div
                   key={tx.id}
                   className="p-4 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition group"
                 >
-                  {/* Left: Icon + Category + Description */}
+                  {/* Left: Icon + Category + Description + Subcategory */}
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow"
@@ -269,34 +338,46 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs sm:text-sm font-bold text-slate-100 truncate">
                           {tx.description}
                         </span>
                         {tx.subcategory && (
-                          <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-medium">
+                          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-teal-950/70 border border-teal-600/30 text-teal-300 font-semibold">
+                            <Tag className="w-2.5 h-2.5" />
                             {tx.subcategory}
+                          </span>
+                        )}
+                        {matchingAccount && (
+                          <span 
+                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold text-slate-200 border"
+                            style={{ borderColor: `${matchingAccount.color}66`, backgroundColor: `${matchingAccount.color}22` }}
+                          >
+                            <Wallet className="w-2.5 h-2.5" />
+                            {matchingAccount.name}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                        <span className="font-semibold text-teal-400">{category.name}</span>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
+                        <span className="font-semibold text-slate-300">{category.name}</span>
                         <span>•</span>
                         <span>{formatDate(tx.date)}</span>
                         <span>•</span>
                         <span className="capitalize text-slate-400">{tx.paymentMethod}</span>
+                        {tx.notes && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate max-w-[150px] italic text-slate-500">
+                              {tx.notes}
+                            </span>
+                          </>
+                        )}
                       </div>
-
-                      {tx.notes && (
-                        <p className="text-[11px] text-slate-500 italic mt-0.5 line-clamp-1">
-                          "{tx.notes}"
-                        </p>
-                      )}
                     </div>
                   </div>
 
-                  {/* Right: Amount + Actions */}
+                  {/* Right: Amount & Actions */}
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div
@@ -307,23 +388,20 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         {tx.type === 'ingreso' ? '+' : '-'}
                         {formatCurrency(tx.amount, settings.currency)}
                       </div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">
-                        {tx.type}
-                      </span>
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition">
+                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
                       <button
                         onClick={() => onEditTransaction(tx)}
-                        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                        title="Editar"
+                        className="p-1.5 text-slate-400 hover:text-teal-400 hover:bg-slate-800 rounded-lg transition"
+                        title="Editar registro"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => onDeleteTransaction(tx.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition"
-                        title="Eliminar"
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition"
+                        title="Eliminar registro"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -335,8 +413,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 space-y-2">
-            <p className="text-sm font-semibold">No se encontraron registros con los filtros seleccionados.</p>
-            <p className="text-xs">Prueba borrando el término de búsqueda o cambiando los filtros.</p>
+            <Filter className="w-8 h-8 mx-auto text-slate-600 opacity-50" />
+            <p className="text-sm font-semibold">No se encontraron transacciones con los filtros seleccionados</p>
+            <p className="text-xs text-slate-600">Prueba ajustando la búsqueda, categoría o subcategoría</p>
           </div>
         )}
       </div>

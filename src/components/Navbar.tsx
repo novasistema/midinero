@@ -5,11 +5,14 @@ import {
   PieChart, 
   BarChart2, 
   PiggyBank, 
+  CalendarCheck,
   Settings, 
   Plus, 
-  Sparkles 
+  Sparkles,
+  Lock,
+  Wallet
 } from 'lucide-react';
-import { MiDineroLogo } from './MiDineroLogo';
+import { ControlLogo } from './MiDineroLogo';
 
 interface NavbarProps {
   activeTab: string;
@@ -26,7 +29,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const tabs = [
     { id: 'inicio', label: 'Inicio', icon: Home },
+    { id: 'cuentas', label: 'Cuentas', icon: Wallet },
     { id: 'transacciones', label: 'Registros', icon: Receipt },
+    { id: 'tareas', label: 'Tareas', icon: CalendarCheck },
+    { id: 'boveda', label: 'Bóveda', icon: Lock },
     { id: 'informes', label: 'Informes', icon: PieChart },
     { id: 'presupuestos', label: 'Límites', icon: BarChart2 },
     { id: 'ahorros', label: 'Ahorros', icon: PiggyBank },
@@ -39,12 +45,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <div className="cursor-pointer" onClick={() => onTabChange('inicio')}>
-            <MiDineroLogo size="md" />
+          <div className="cursor-pointer" onClick={() => onTabChange('inicio')} title="CONTROL - Finanzas y Tareas Diarias">
+            <ControlLogo size="md" />
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
+          <nav className="hidden md:flex items-center gap-1 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -52,13 +58,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-teal-600 text-white shadow-md'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                   {tab.label}
                 </button>
               );
@@ -88,8 +94,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       {/* Mobile Bottom Floating Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-2 py-1.5">
-        <div className="flex items-center justify-around max-w-md mx-auto">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-1 py-1">
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5 px-1 scrollbar-none justify-start">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -97,12 +103,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-                  isActive ? 'text-teal-400 font-extrabold' : 'text-slate-500 hover:text-slate-300'
+                className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl shrink-0 transition ${
+                  isActive ? 'text-teal-400 font-extrabold bg-slate-900' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''}`} />
-                <span className="text-[10px] tracking-tight">{tab.label}</span>
+                <Icon className={`w-4 h-4 ${isActive ? 'scale-110' : ''}`} />
+                <span className="text-[10px] whitespace-nowrap tracking-tight">{tab.label}</span>
               </button>
             );
           })}
