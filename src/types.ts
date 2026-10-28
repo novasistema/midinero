@@ -106,56 +106,6 @@ export interface MonthlySummary {
   savingsRate: number;
 }
 
-export type TaskPriority = 'baja' | 'media' | 'alta' | 'urgente';
-export type TaskStatus = 'pendiente' | 'en_progreso' | 'completada';
-
-export interface WeeklyTask {
-  id: string;
-  title: string;
-  description?: string;
-  dayOfWeek: number; // 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves, 5 = Viernes, 6 = Sábado, 7 = Domingo
-  date?: string; // YYYY-MM-DD
-  startTime?: string; // HH:mm (ej. '09:00')
-  endTime?: string; // HH:mm (ej. '10:30')
-  durationMinutes?: number; // ej. 60 min
-  priority: TaskPriority;
-  status: TaskStatus;
-  category: string; // ej. 'Finanzas', 'Pagos', 'Trabajo', 'Salud', 'Personal', 'Impuestos'
-  hasReminder: boolean;
-  reminderMinutesBefore: number; // 0 (al momento), 5, 10, 15, 30, 60
-  hasAlarmSound: boolean;
-  alarmTone?: 'bell' | 'chime' | 'urgent';
-  reminderTriggered?: boolean;
-  completedAt?: string;
-  createdAt: string;
-}
-
-// Bóveda de Contraseñas (Password Vault)
-export type VaultCategory = 
-  | 'banco' 
-  | 'web' 
-  | 'billetera' 
-  | 'tarjeta' 
-  | 'servicio' 
-  | 'email' 
-  | 'otro';
-
-export interface VaultCredential {
-  id: string;
-  title: string;
-  category: VaultCategory;
-  username: string;
-  password: string;
-  url?: string;
-  pin?: string;
-  securityNotes?: string;
-  color?: string;
-  icon?: string;
-  favorite?: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // Cuentas de Dinero y Billeteras
 export type AccountType = 
   | 'banco' 

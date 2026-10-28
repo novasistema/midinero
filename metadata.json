@@ -1,6 +1,8 @@
 {
-  "name": "MiDinero",
-  "description": "Plataforma de finanzas personales, gestión de cuentas y billeteras (bancos, efectivo, virtuales), bóveda segura de contraseñas, subcategorías de gastos, agenda semanal con alarmas y control de saldos disponibles.",
+  "name": "Remix MiDinero solo finanzas",
+  "description": "Sistema de finanzas personales para control de ingresos, gastos detallados, presupuestos, alertas, módulo de ahorro e inversión e informes comparativos mensuales.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

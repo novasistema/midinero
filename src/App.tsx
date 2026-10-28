@@ -1,22 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   INITIAL_TRANSACTIONS, 
   INITIAL_BUDGETS, 
   INITIAL_SAVINGS_GOALS, 
   INITIAL_SETTINGS,
-  INITIAL_WEEKLY_TASKS,
-  INITIAL_ACCOUNTS,
-  INITIAL_CREDENTIALS
+  INITIAL_ACCOUNTS
 } from './data/initialData';
 import { 
   Transaction, 
   CategoryBudget, 
   SavingsGoal, 
   UserSettings, 
-  CategoryId,
   TransferSavingsPayload,
-  WeeklyTask,
-  VaultCredential,
   MoneyAccount,
   AccountTransferPayload,
   Category
@@ -26,12 +21,6 @@ import {
   saveStoredCategories, 
   DEFAULT_CATEGORIES 
 } from './data/categories';
-import { 
-  isTaskDueForReminder, 
-  startRepeatingAlarm, 
-  stopAlarmSound, 
-  playTonePattern 
-} from './services/alarmService';
 import { syncManager } from './utils/sync';
 import confetti from 'canvas-confetti';
 
@@ -43,9 +32,17 @@ import { ReportsView } from './components/ReportsView';
 import { BudgetsView } from './components/BudgetsView';
 import { SavingsView } from './components/SavingsView';
 import { SettingsView } from './components/SettingsView';
-import { WeeklyTasksView } from './components/WeeklyTasksView';
-import { VaultView } from './components/VaultView';
 import { AccountsView } from './components/AccountsView';
+
+// Auth & Access Control
+import { AuthView } from './components/auth/AuthView';
+import { AccessDeniedView } from './components/auth/AccessDeniedView';
+import { 
+  supabase, 
+  verifyUserAccess, 
+  UserAccessResult 
+} from './services/supabase';
+import { Session } from '@supabase/supabase-js';
 
 // Modals
 import { TransactionModal } from './components/TransactionModal';
@@ -53,15 +50,19 @@ import { TransferModal } from './components/TransferModal';
 import { QuickAiInputModal } from './components/QuickAiInputModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { CategoriesModal } from './components/CategoriesModal';
-import { TaskModal } from './components/TaskModal';
-import { AlarmModal } from './components/AlarmModal';
-import { VaultModal } from './components/VaultModal';
 import { AccountModal } from './components/AccountModal';
 import { AccountTransferModal } from './components/AccountTransferModal';
 
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X, ShieldCheck, Loader2 } from 'lucide-react';
 
 export default function App() {
+  // --- SUPABASE AUTH & CONTROL DE ACCESO ---
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed' | 'denied' | 'no_session'>('checking');
+  const [accessResult, setAccessResult] = useState<UserAccessResult | null>(null);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
   // 1. Transactions State
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
@@ -104,17 +105,7 @@ export default function App() {
   // 4. Categories & Subcategories State
   const [categories, setCategories] = useState<Category[]>(loadStoredCategories);
 
-  // 5. Weekly Tasks State (with Day planner, time blocks, alarms)
-  const [weeklyTasks, setWeeklyTasks] = useState<WeeklyTask[]>(() => {
-    try {
-      const saved = localStorage.getItem('midinero_weekly_tasks');
-      return saved ? JSON.parse(saved) : INITIAL_WEEKLY_TASKS;
-    } catch {
-      return INITIAL_WEEKLY_TASKS;
-    }
-  });
-
-  // 6. Money Accounts & Wallets State
+  // 5. Money Accounts & Wallets State
   const [accounts, setAccounts] = useState<MoneyAccount[]>(() => {
     try {
       const saved = localStorage.getItem('midinero_accounts');
@@ -124,17 +115,7 @@ export default function App() {
     }
   });
 
-  // 7. Password Vault State
-  const [credentials, setCredentials] = useState<VaultCredential[]>(() => {
-    try {
-      const saved = localStorage.getItem('midinero_vault_credentials');
-      return saved ? JSON.parse(saved) : INITIAL_CREDENTIALS;
-    } catch {
-      return INITIAL_CREDENTIALS;
-    }
-  });
-
-  // 8. User Settings State
+  // 6. User Settings State
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem('midinero_settings');
@@ -144,7 +125,7 @@ export default function App() {
     }
   });
 
-  // Active view tab ('inicio' | 'cuentas' | 'transacciones' | 'tareas' | 'boveda' | 'informes' | 'presupuestos' | 'ahorros' | 'ajustes')
+  // Active view tab ('inicio' | 'cuentas' | 'transacciones' | 'informes' | 'presupuestos' | 'ahorros' | 'ajustes')
   const [activeTab, setActiveTab] = useState<string>('inicio');
 
   // Modal States
@@ -157,23 +138,13 @@ export default function App() {
   // Subcategories & Custom Categories Modal
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
 
-  // Task Modals & Alarm State
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<WeeklyTask | null>(null);
-  const [defaultTaskDay, setDefaultTaskDay] = useState<number>(1);
-  const [activeAlarmTask, setActiveAlarmTask] = useState<WeeklyTask | null>(null);
-
   // Account Modals State
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<MoneyAccount | null>(null);
   const [isAccountTransferModalOpen, setIsAccountTransferModalOpen] = useState(false);
   const [transferInitialSourceAccountId, setTransferInitialSourceAccountId] = useState<string | undefined>(undefined);
 
-  // Vault Modal State
-  const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
-  const [editingCredential, setEditingCredential] = useState<VaultCredential | null>(null);
-
-  // Custom confirmation dialog state (replaces blocked window.confirm in iframe)
+  // Custom confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -185,7 +156,7 @@ export default function App() {
     onConfirm: () => void;
   } | null>(null);
 
-  // In-app toast feedback state (replaces blocked window.alert in iframe)
+  // In-app toast feedback state
   const [toast, setToast] = useState<{
     id: number;
     message: string;
@@ -198,6 +169,75 @@ export default function App() {
     setTimeout(() => {
       setToast((curr) => (curr?.id === id ? null : curr));
     }, 4000);
+  };
+
+  // --- SUPABASE AUTH STATE LISTENER & ACCESS EVALUATION ---
+  const evaluateAccess = async (currentSession: Session | null) => {
+    if (!currentSession) {
+      setSession(null);
+      setAccessStatus('no_session');
+      setAuthLoading(false);
+      return;
+    }
+
+    setSession(currentSession);
+    setAccessStatus('checking');
+
+    // Consultar tabla 'accesos' con app_slug = 'midinero'
+    const res = await verifyUserAccess(currentSession.user.id);
+    setAccessResult(res);
+
+    if (res.hasAccess) {
+      setAccessStatus('allowed');
+    } else {
+      setAccessStatus('denied');
+    }
+    setAuthLoading(false);
+  };
+
+  useEffect(() => {
+    // Detectar si el usuario llega mediante enlace de recuperación de contraseña
+    if (window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery')) {
+      setIsPasswordRecovery(true);
+    }
+
+    // 1. Cargar sesión inicial existente
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error('Error al recuperar sesión:', error);
+      }
+      evaluateAccess(data.session);
+    });
+
+    // 2. Suscribirse a cambios de estado de autenticación (login, logout, token refresh, recovery)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setAccessStatus('no_session');
+        setAuthLoading(false);
+      } else if (newSession) {
+        evaluateAccess(newSession);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('Error al cerrar sesión:', err);
+    }
+    setSession(null);
+    setAccessStatus('no_session');
+    setIsPasswordRecovery(false);
+    showToast('Has cerrado sesión correctamente', 'info');
   };
 
   // Sync to LocalStorage
@@ -234,15 +274,6 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('midinero_weekly_tasks', JSON.stringify(weeklyTasks));
-      syncManager.notifyUpdate('DATA_UPDATED');
-    } catch (err) {
-      console.error('Failed to save weekly tasks:', err);
-    }
-  }, [weeklyTasks]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('midinero_accounts', JSON.stringify(accounts));
       syncManager.notifyUpdate('DATA_UPDATED');
     } catch (err) {
@@ -252,72 +283,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('midinero_vault_credentials', JSON.stringify(credentials));
-      syncManager.notifyUpdate('DATA_UPDATED');
-    } catch (err) {
-      console.error('Failed to save vault credentials:', err);
-    }
-  }, [credentials]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('midinero_settings', JSON.stringify(settings));
     } catch (err) {
       console.error('Failed to save settings:', err);
     }
   }, [settings]);
-
-  // Periodic Alarm & Reminder Checker for Weekly Tasks (every 15 seconds)
-  const tasksRef = useRef(weeklyTasks);
-  tasksRef.current = weeklyTasks;
-
-  useEffect(() => {
-    const checkTaskAlarms = () => {
-      const now = new Date();
-      // Current day of week: Monday = 1 ... Sunday = 7
-      const currentDay = now.getDay() === 0 ? 7 : now.getDay();
-
-      tasksRef.current.forEach((task) => {
-        if (task.status === 'completada') return;
-        if (task.reminderTriggered) return;
-
-        // Check if task is for today and due for alarm
-        if (task.dayOfWeek === currentDay && isTaskDueForReminder(task)) {
-          // Trigger alarm!
-          if (task.hasAlarmSound) {
-            startRepeatingAlarm(task.alarmTone || 'chime', 2000);
-          } else {
-            playTonePattern('bell');
-          }
-
-          // Browser Notification if permitted
-          if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification(`⏰ Recordatorio de Tarea: ${task.title}`, {
-                body: task.description || `Hora asignada: ${task.startTime || 'Ahora'}`,
-                icon: '/favicon.ico',
-              });
-            } catch (e) {
-              console.warn('Browser notification error', e);
-            }
-          }
-
-          // Mark task as triggered in state so it doesn't loop forever
-          setWeeklyTasks((prev) =>
-            prev.map((t) => (t.id === task.id ? { ...t, reminderTriggered: true } : t))
-          );
-
-          // Open in-app visual alarm modal
-          setActiveAlarmTask(task);
-        }
-      });
-    };
-
-    // Check immediately and then every 15s
-    checkTaskAlarms();
-    const interval = setInterval(checkTaskAlarms, 15000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Handlers for Transactions (with account balance synchronization)
   const handleSaveTransaction = (txData: Omit<Transaction, 'id'> | Transaction) => {
@@ -354,17 +324,17 @@ export default function App() {
       }
 
       setTransactions((prev) =>
-        prev.map((t) => (t.id === txData.id ? savedTx : t))
+        prev.map((t) => (t.id === savedTx.id ? savedTx : t))
       );
       showToast('Registro actualizado correctamente', 'success');
     } else {
       // Create new
       savedTx = {
-        ...(txData as Omit<Transaction, 'id'>),
-        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        ...txData,
+        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       };
 
-      // Impact account balance
+      // Update account current balance if account chosen
       if (savedTx.accountId) {
         const impact = savedTx.type === 'ingreso' ? savedTx.amount : -savedTx.amount;
         setAccounts((prevAccs) =>
@@ -377,72 +347,79 @@ export default function App() {
       }
 
       setTransactions((prev) => [savedTx, ...prev]);
-      showToast('Registro añadido correctamente', 'success');
+      showToast(
+        savedTx.type === 'ingreso' ? '¡Ingreso registrado!' : 'Gasto registrado correctamente',
+        'success'
+      );
+
+      if (savedTx.type === 'ingreso') {
+        confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
+      }
     }
-    setEditingTx(null);
   };
 
   const handleDeleteTransaction = (id: string) => {
-    const tx = transactions.find((t) => t.id === id);
+    const txToDelete = transactions.find((t) => t.id === id);
+
     setConfirmDialog({
       isOpen: true,
-      title: '¿Eliminar transacción?',
-      message: '¿Estás seguro de que deseas eliminar este movimiento? Esta acción no se puede deshacer.',
-      confirmText: 'Eliminar',
+      title: '¿Eliminar registro financiero?',
+      message: '¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar Registro',
       cancelText: 'Cancelar',
       isDestructive: true,
       iconType: 'delete',
       onConfirm: () => {
-        if (tx && tx.accountId) {
-          // Revert impact on account balance
-          const revertAmount = tx.type === 'ingreso' ? -tx.amount : tx.amount;
+        // Revert account balance impact if this tx belonged to an account
+        if (txToDelete && txToDelete.accountId) {
+          const revertAmount = txToDelete.type === 'ingreso' ? -txToDelete.amount : txToDelete.amount;
           setAccounts((prevAccs) =>
             prevAccs.map((acc) =>
-              acc.id === tx.accountId
+              acc.id === txToDelete.accountId
                 ? { ...acc, currentBalance: acc.currentBalance + revertAmount }
                 : acc
             )
           );
         }
+
         setTransactions((prev) => prev.filter((t) => t.id !== id));
-        showToast('Transacción eliminada correctamente', 'info');
+        showToast('Registro eliminado', 'info');
       },
     });
   };
 
   // Handlers for Budgets
-  const handleUpdateBudget = (categoryId: CategoryId, limit: number) => {
+  const handleUpdateBudget = (categoryId: string, limit: number) => {
     setBudgets((prev) => {
-      const exists = prev.some((b) => b.categoryId === categoryId);
-      if (exists) {
+      const existing = prev.find((b) => b.categoryId === categoryId);
+      if (existing) {
         return prev.map((b) => (b.categoryId === categoryId ? { ...b, limit } : b));
-      } else {
-        return [...prev, { categoryId, limit }];
       }
+      return [...prev, { categoryId, limit }];
     });
-    showToast('Presupuesto actualizado', 'success');
+    showToast('Límite de presupuesto actualizado', 'success');
   };
 
   // Handlers for Savings Goals
-  const handleAddSavingsGoal = (goalData: Omit<SavingsGoal, 'id'>) => {
+  const handleAddSavingsGoal = (goal: Omit<SavingsGoal, 'id'>) => {
     const newGoal: SavingsGoal = {
-      ...goalData,
+      ...goal,
       id: `goal-${Date.now()}`,
     };
     setSavingsGoals((prev) => [...prev, newGoal]);
-    showToast('Meta de ahorro creada', 'success');
+    showToast(goal.isInvestment ? 'Nueva inversión añadida' : 'Nueva meta de ahorro creada', 'success');
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
   };
 
-  const handleUpdateSavingsGoal = (updatedGoal: SavingsGoal) => {
+  const handleUpdateSavingsGoal = (id: string, currentAmount: number) => {
     setSavingsGoals((prev) =>
-      prev.map((g) => (g.id === updatedGoal.id ? updatedGoal : g))
+      prev.map((g) => (g.id === id ? { ...g, currentAmount } : g))
     );
-    showToast('Meta de ahorro actualizada', 'success');
   };
 
   const handleUpdateAllSavingsGoals = (updatedGoals: SavingsGoal[]) => {
     setSavingsGoals(updatedGoals);
-    showToast('Cotizaciones actualizadas', 'success');
+    showToast('Metas de ahorro actualizadas', 'success');
   };
 
   const handleDeleteSavingsGoal = (id: string) => {
@@ -533,74 +510,6 @@ export default function App() {
     showToast('Subcategoría eliminada', 'info');
   };
 
-  // Handlers for Weekly Tasks
-  const handleOpenAddTask = (day: number = 1) => {
-    setDefaultTaskDay(day);
-    setEditingTask(null);
-    setIsTaskModalOpen(true);
-  };
-
-  const handleOpenEditTask = (task: WeeklyTask) => {
-    setEditingTask(task);
-    setIsTaskModalOpen(true);
-  };
-
-  const handleSaveTask = (taskData: Omit<WeeklyTask, 'id' | 'createdAt'> | WeeklyTask) => {
-    if ('id' in taskData && taskData.id) {
-      setWeeklyTasks((prev) =>
-        prev.map((t) => (t.id === taskData.id ? (taskData as WeeklyTask) : t))
-      );
-      showToast('Tarea actualizada correctamente', 'success');
-    } else {
-      const newTask: WeeklyTask = {
-        ...(taskData as Omit<WeeklyTask, 'id' | 'createdAt'>),
-        id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        createdAt: new Date().toISOString(),
-      };
-      setWeeklyTasks((prev) => [...prev, newTask]);
-      showToast('Tarea programada con recordatorio', 'success');
-    }
-  };
-
-  const handleDeleteTask = (id: string) => {
-    setWeeklyTasks((prev) => prev.filter((t) => t.id !== id));
-    showToast('Tarea eliminada de la agenda', 'info');
-  };
-
-  const handleToggleTaskStatus = (id: string) => {
-    setWeeklyTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === id) {
-          const nextStatus = t.status === 'completada' ? 'pendiente' : 'completada';
-          if (nextStatus === 'completada') {
-            confetti({ particleCount: 35, spread: 50, origin: { y: 0.8 } });
-          }
-          return {
-            ...t,
-            status: nextStatus,
-            completedAt: nextStatus === 'completada' ? new Date().toISOString() : undefined,
-          };
-        }
-        return t;
-      })
-    );
-  };
-
-  const handleSnoozeAlarm = (minutes: number = 5) => {
-    stopAlarmSound();
-    if (activeAlarmTask) {
-      showToast(`Alarma pospuesta por ${minutes} minutos`, 'info');
-    }
-    setActiveAlarmTask(null);
-  };
-
-  const handleCompleteAlarmTask = (id: string) => {
-    stopAlarmSound();
-    handleToggleTaskStatus(id);
-    setActiveAlarmTask(null);
-    showToast('¡Tarea completada! 🎉', 'success');
-  };
-
   // Handlers for Money Accounts & Wallets
   const handleOpenAddAccount = () => {
     setEditingAccount(null);
@@ -687,57 +596,6 @@ export default function App() {
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
   };
 
-  // Handlers for Password Vault
-  const handleOpenAddCredential = () => {
-    setEditingCredential(null);
-    setIsVaultModalOpen(true);
-  };
-
-  const handleOpenEditCredential = (cred: VaultCredential) => {
-    setEditingCredential(cred);
-    setIsVaultModalOpen(true);
-  };
-
-  const handleSaveCredential = (credData: Omit<VaultCredential, 'id' | 'createdAt' | 'updatedAt'> | VaultCredential) => {
-    if ('id' in credData && credData.id) {
-      setCredentials((prev) =>
-        prev.map((c) => (c.id === credData.id ? (credData as VaultCredential) : c))
-      );
-      showToast('Credencial actualizada en la bóveda', 'success');
-    } else {
-      const newCred: VaultCredential = {
-        ...(credData as Omit<VaultCredential, 'id' | 'createdAt' | 'updatedAt'>),
-        id: `vault-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setCredentials((prev) => [newCred, ...prev]);
-      showToast('Credencial guardada de forma segura', 'success');
-    }
-  };
-
-  const handleDeleteCredential = (id: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: '¿Eliminar de la bóveda?',
-      message: '¿Estás seguro de que deseas eliminar este registro de contraseñas? Esta acción no se puede deshacer.',
-      confirmText: 'Eliminar Credencial',
-      cancelText: 'Cancelar',
-      isDestructive: true,
-      iconType: 'delete',
-      onConfirm: () => {
-        setCredentials((prev) => prev.filter((c) => c.id !== id));
-        showToast('Credencial eliminada de la bóveda', 'info');
-      },
-    });
-  };
-
-  const handleToggleFavoriteCredential = (id: string) => {
-    setCredentials((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, favorite: !c.favorite } : c))
-    );
-  };
-
   // Backup & Import
   const handleExportData = () => {
     const data = {
@@ -746,10 +604,8 @@ export default function App() {
       savingsGoals,
       settings,
       categories,
-      weeklyTasks,
       accounts,
-      credentials,
-      version: '2.5.0',
+      version: '3.0.0',
       exportedAt: new Date().toISOString(),
     };
 
@@ -757,7 +613,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Control_Backup_${new Date().toISOString().substring(0, 10)}.json`;
+    a.download = `Control_Finanzas_${new Date().toISOString().substring(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast('Copia de seguridad descargada correctamente', 'success');
@@ -777,10 +633,8 @@ export default function App() {
         if (parsed.savingsGoals) setSavingsGoals(parsed.savingsGoals);
         if (parsed.settings) setSettings(parsed.settings);
         if (parsed.categories) setCategories(parsed.categories);
-        if (parsed.weeklyTasks) setWeeklyTasks(parsed.weeklyTasks);
         if (parsed.accounts) setAccounts(parsed.accounts);
-        if (parsed.credentials) setCredentials(parsed.credentials);
-        showToast('¡Datos importados con éxito!', 'success');
+        showToast('¡Datos de finanzas importados con éxito!', 'success');
       } catch (err) {
         showToast('Error al leer el archivo JSON de copia de seguridad', 'error');
       }
@@ -794,7 +648,7 @@ export default function App() {
       isOpen: true,
       title: '¿Restablecer datos de fábrica?',
       message:
-        'Se restablecerán todas las transacciones, cuentas de dinero, contraseñas, agenda semanal, metas y presupuestos a sus valores iniciales.',
+        'Se restablecerán todas las transacciones, cuentas y billeteras, metas de ahorro y presupuestos a sus valores predeterminados de finanzas.',
       confirmText: 'Restablecer de Fábrica',
       cancelText: 'Cancelar',
       isDestructive: true,
@@ -806,27 +660,25 @@ export default function App() {
           const defaultSavings = JSON.parse(JSON.stringify(INITIAL_SAVINGS_GOALS));
           const defaultSettings = JSON.parse(JSON.stringify(INITIAL_SETTINGS));
           const defaultCategories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-          const defaultTasks = JSON.parse(JSON.stringify(INITIAL_WEEKLY_TASKS));
           const defaultAccs = JSON.parse(JSON.stringify(INITIAL_ACCOUNTS));
-          const defaultCreds = JSON.parse(JSON.stringify(INITIAL_CREDENTIALS));
 
           setTransactions(defaultTransactions);
           setBudgets(defaultBudgets);
           setSavingsGoals(defaultSavings);
           setSettings(defaultSettings);
           setCategories(defaultCategories);
-          setWeeklyTasks(defaultTasks);
           setAccounts(defaultAccs);
-          setCredentials(defaultCreds);
 
           localStorage.setItem('midinero_transactions', JSON.stringify(defaultTransactions));
           localStorage.setItem('midinero_budgets', JSON.stringify(defaultBudgets));
           localStorage.setItem('midinero_savings_goals', JSON.stringify(defaultSavings));
           localStorage.setItem('midinero_settings', JSON.stringify(defaultSettings));
           localStorage.setItem('midinero_categories', JSON.stringify(defaultCategories));
-          localStorage.setItem('midinero_weekly_tasks', JSON.stringify(defaultTasks));
           localStorage.setItem('midinero_accounts', JSON.stringify(defaultAccs));
-          localStorage.setItem('midinero_vault_credentials', JSON.stringify(defaultCreds));
+
+          // Clean up old obsolete keys from storage
+          localStorage.removeItem('midinero_weekly_tasks');
+          localStorage.removeItem('midinero_vault_credentials');
 
           showToast('¡Datos restablecidos a la configuración de fábrica con éxito!', 'success');
         } catch (err) {
@@ -866,7 +718,7 @@ export default function App() {
       isOpen: true,
       title: '¿Iniciar de cero completamente?',
       message:
-        'Esta acción borrará todas las transacciones, metas de ahorro, cuentas y presupuestos para que empieces desde cero (0 registros).',
+        'Esta acción borrará todas las transacciones, metas de ahorro, cuentas bancarias y presupuestos para que empieces desde cero (0 registros).',
       confirmText: 'Borrar Todo e Iniciar de Cero',
       cancelText: 'Cancelar',
       isDestructive: true,
@@ -876,16 +728,14 @@ export default function App() {
           setTransactions([]);
           setBudgets([]);
           setSavingsGoals([]);
-          setWeeklyTasks([]);
           setAccounts([]);
-          setCredentials([]);
 
           localStorage.setItem('midinero_transactions', JSON.stringify([]));
           localStorage.setItem('midinero_budgets', JSON.stringify([]));
           localStorage.setItem('midinero_savings_goals', JSON.stringify([]));
-          localStorage.setItem('midinero_weekly_tasks', JSON.stringify([]));
           localStorage.setItem('midinero_accounts', JSON.stringify([]));
-          localStorage.setItem('midinero_vault_credentials', JSON.stringify([]));
+          localStorage.removeItem('midinero_weekly_tasks');
+          localStorage.removeItem('midinero_vault_credentials');
 
           syncManager.notifyUpdate('DATA_UPDATED');
           showToast('¡Se han borrado todos los datos! La aplicación está lista desde cero.', 'success');
@@ -897,6 +747,74 @@ export default function App() {
     });
   };
 
+  // --- CONTROL DE ACCESO RENDERING GATES ---
+  // 1. Pantalla de carga mientras se verifica sesión y licencia
+  if (authLoading) {
+    return (
+      <div 
+        className="min-h-screen flex flex-col items-center justify-center p-4 selection:bg-[#E3A82B] selection:text-black"
+        style={{ backgroundColor: '#0D1117' }}
+      >
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#161B22] border border-[#30363D] flex items-center justify-center shadow-xl">
+            <ShieldCheck className="w-7 h-7 text-[#E3A82B]" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-xl font-black text-white tracking-wider uppercase">
+              Vértice Lab
+            </h1>
+            <p className="text-xs font-semibold text-[#E3A82B] tracking-widest uppercase mt-0.5">
+              Mi Dinero
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400 pt-4">
+            <Loader2 className="w-4 h-4 animate-spin text-[#E3A82B]" />
+            <span>Verificando credenciales y licencia...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Pantalla para recuperar / restablecer contraseña (link recibido por email)
+  if (isPasswordRecovery) {
+    return (
+      <AuthView
+        initialMode="reset_password"
+        onAuthSuccess={() => {
+          setIsPasswordRecovery(false);
+          supabase.auth.getSession().then(({ data }) => evaluateAccess(data.session));
+        }}
+      />
+    );
+  }
+
+  // 3. Pantalla de Login si no hay sesión activa
+  if (!session || accessStatus === 'no_session') {
+    return (
+      <AuthView
+        initialMode="login"
+        onAuthSuccess={() => {
+          supabase.auth.getSession().then(({ data }) => evaluateAccess(data.session));
+        }}
+      />
+    );
+  }
+
+  // 4. Pantalla de Acceso No Activo / Licencia Vencida si el usuario está autenticado pero no tiene fila válida en 'accesos'
+  if (accessStatus === 'denied') {
+    return (
+      <AccessDeniedView
+        userEmail={session.user.email}
+        reason={accessResult?.reason}
+        message={accessResult?.message}
+        onRetry={() => evaluateAccess(session)}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // 5. Usuario con sesión válida y acceso activo -> Visualizar la aplicación completa
   const isDark = settings.theme === 'dark';
 
   return (
@@ -909,6 +827,8 @@ export default function App() {
           setIsAddModalOpen(true);
         }}
         onOpenAiModal={() => setIsAiModalOpen(true)}
+        onLogout={handleLogout}
+        userEmail={session.user.email}
       />
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-5 pb-20 md:pb-12">
@@ -920,9 +840,7 @@ export default function App() {
             savingsGoals={savingsGoals}
             settings={settings}
             categories={categories}
-            weeklyTasks={weeklyTasks}
             accounts={accounts}
-            vaultCount={credentials.length}
             onOpenAddModal={() => {
               setEditingTx(null);
               setIsAddModalOpen(true);
@@ -930,7 +848,6 @@ export default function App() {
             onOpenAiModal={() => setIsAiModalOpen(true)}
             onNavigateTab={setActiveTab}
             onOpenTransferModal={handleOpenTransfer}
-            onToggleTaskStatus={handleToggleTaskStatus}
           />
         )}
 
@@ -965,34 +882,6 @@ export default function App() {
             onDeleteTransaction={handleDeleteTransaction}
             onClearAllTransactions={handleClearAllTransactions}
             onOpenCategoriesModal={() => setIsCategoriesModalOpen(true)}
-          />
-        )}
-
-        {/* AGENDA SEMANAL Y TAREAS */}
-        {activeTab === 'tareas' && (
-          <WeeklyTasksView
-            tasks={weeklyTasks}
-            onAddTask={handleOpenAddTask}
-            onEditTask={handleOpenEditTask}
-            onDeleteTask={handleDeleteTask}
-            onToggleTaskStatus={handleToggleTaskStatus}
-            onTriggerAlarmTest={() => {
-              startRepeatingAlarm('chime', 2000);
-              showToast('Probando timbre de alarma sintetizado...', 'info');
-              setTimeout(stopAlarmSound, 6000);
-            }}
-          />
-        )}
-
-        {/* BÓVEDA DE CONTRASEÑAS */}
-        {activeTab === 'boveda' && (
-          <VaultView
-            credentials={credentials}
-            onAddCredential={handleOpenAddCredential}
-            onEditCredential={handleOpenEditCredential}
-            onDeleteCredential={handleDeleteCredential}
-            onToggleFavorite={handleToggleFavoriteCredential}
-            showToast={showToast}
           />
         )}
 
@@ -1038,6 +927,8 @@ export default function App() {
             onResetData={handleResetData}
             onClearAllData={handleClearAllData}
             onOpenCategoriesModal={() => setIsCategoriesModalOpen(true)}
+            userEmail={session.user.email}
+            onLogout={handleLogout}
           />
         )}
       </main>
@@ -1086,42 +977,6 @@ export default function App() {
         settings={settings}
         initialSourceId={transferInitialSourceAccountId}
         onConfirmTransfer={handleConfirmAccountTransfer}
-      />
-
-      {/* Task Modal (Create / Edit Weekly Task with Day and Alarm settings) */}
-      <TaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setEditingTask(null);
-        }}
-        onSave={handleSaveTask}
-        initialData={editingTask}
-        defaultDay={defaultTaskDay}
-      />
-
-      {/* Acoustic Ringing Alarm Modal */}
-      {activeAlarmTask && (
-        <AlarmModal
-          task={activeAlarmTask}
-          onDismiss={() => {
-            stopAlarmSound();
-            setActiveAlarmTask(null);
-          }}
-          onSnooze={handleSnoozeAlarm}
-          onComplete={handleCompleteAlarmTask}
-        />
-      )}
-
-      {/* Password Vault Modal (Add / Edit Credential) */}
-      <VaultModal
-        isOpen={isVaultModalOpen}
-        onClose={() => {
-          setIsVaultModalOpen(false);
-          setEditingCredential(null);
-        }}
-        onSave={handleSaveCredential}
-        initialData={editingCredential}
       />
 
       {/* Categories & Subcategories Management Modal */}

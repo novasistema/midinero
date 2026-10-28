@@ -48,7 +48,7 @@ export const ControlLogo: React.FC<LogoProps> = ({
       <div className={`flex flex-col items-center ${className}`}>
         <img
           src="/assets/aistudio/logo_control_0bd5bb22.jpg"
-          alt="CONTROL - Finanzas y Tareas Diarias"
+          alt="CONTROL - Finanzas Personales"
           className="rounded-2xl shadow-xl border border-teal-500/20 max-w-full object-contain"
         />
       </div>
@@ -87,7 +87,7 @@ export const ControlLogo: React.FC<LogoProps> = ({
           <span
             className={`font-bold uppercase tracking-wider text-teal-400/90 ${currentSize.subtitle} mt-0.5`}
           >
-            Finanzas y Tareas Diarias
+            Finanzas Personales
           </span>
         </div>
       )}

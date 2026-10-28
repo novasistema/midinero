@@ -3,6 +3,8 @@ import { Sparkles, Camera, X, Check, Loader2, UploadCloud } from 'lucide-react';
 import { Transaction, CategoryId, PaymentMethod, TransactionType } from '../types';
 import { CATEGORIES } from '../data/categories';
 
+import { supabase } from '../services/supabase';
+
 interface QuickAiInputModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,80 +22,121 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleParseText = () => {
+  const fallbackLocalParser = (text: string) => {
+    const lower = text.toLowerCase();
+    
+    // Determine Type
+    let type: TransactionType = 'gasto';
+    if (lower.includes('ingreso') || lower.includes('cobro') || lower.includes('salario') || lower.includes('nomina') || lower.includes('bonus') || lower.includes('venta')) {
+      type = 'ingreso';
+    }
+
+    // Extract Amount
+    const amountMatch = text.match(/(\d+([.,]\d{1,2})?)/);
+    const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 25.0;
+
+    // Determine Category
+    let categoryId: CategoryId = 'otros';
+    if (lower.includes('super') || lower.includes('mercadona') || lower.includes('carrefour') || lower.includes('comida') || lower.includes('compra')) {
+      categoryId = 'supermercado';
+    } else if (lower.includes('farmacia') || lower.includes('medicina') || lower.includes('salud') || lower.includes('pastillas')) {
+      categoryId = 'farmacia';
+    } else if (lower.includes('impuesto') || lower.includes('irpf') || lower.includes('tasas') || lower.includes('autonomo') || lower.includes('hacienda')) {
+      categoryId = 'impuestos';
+    } else if (lower.includes('ocio') || lower.includes('cine') || lower.includes('cena') || lower.includes('bar') || lower.includes('restaurante') || lower.includes('fiesta')) {
+      categoryId = 'ocio';
+    } else if (lower.includes('transporte') || lower.includes('gasolina') || lower.includes('metro') || lower.includes('bus') || lower.includes('uber') || lower.includes('taxi')) {
+      categoryId = 'transporte';
+    } else if (lower.includes('alquiler') || lower.includes('luz') || lower.includes('agua') || lower.includes('gas') || lower.includes('piso')) {
+      categoryId = 'vivienda';
+    } else if (type === 'ingreso' && (lower.includes('nomina') || lower.includes('salario') || lower.includes('trabajo'))) {
+      categoryId = 'salario';
+    } else if (type === 'ingreso' && (lower.includes('invers') || lower.includes('dividend') || lower.includes('interes'))) {
+      categoryId = 'inversiones';
+    }
+
+    // Payment method
+    let paymentMethod: PaymentMethod = 'tarjeta';
+    if (lower.includes('bizum')) paymentMethod = 'bizum';
+    else if (lower.includes('efectivo') || lower.includes('cash')) paymentMethod = 'efectivo';
+    else if (lower.includes('transferencia') || lower.includes('banco')) paymentMethod = 'transferencia';
+
+    const today = new Date().toISOString().split('T')[0];
+
+    return {
+      type,
+      amount,
+      categoryId,
+      description: text,
+      date: today,
+      paymentMethod,
+      notes: 'Analizado con el asistente inteligente IA',
+    };
+  };
+
+  const handleParseText = async () => {
     if (!inputText.trim()) return;
     setIsProcessing(true);
 
-    setTimeout(() => {
-      const lower = inputText.toLowerCase();
-      
-      // Determine Type
-      let type: TransactionType = 'gasto';
-      if (lower.includes('ingreso') || lower.includes('cobro') || lower.includes('salario') || lower.includes('nomina') || lower.includes('bonus') || lower.includes('venta')) {
-        type = 'ingreso';
+    try {
+      // 1. Obtener token de sesión de Supabase
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (token) {
+        // Intentar invocar la API segura de servidor
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ prompt: inputText }),
+        });
+
+        if (response.ok) {
+          const resJson = await response.json();
+          if (resJson?.data && resJson.data.amount) {
+            setDetectedTx({
+              type: resJson.data.type || 'gasto',
+              amount: Number(resJson.data.amount) || 0,
+              categoryId: resJson.data.categoryId || 'otros',
+              description: resJson.data.description || inputText,
+              date: new Date().toISOString().split('T')[0],
+              paymentMethod: resJson.data.paymentMethod || 'tarjeta',
+              notes: resJson.data.notes || 'Procesado con Gemini AI mediante backend protegido',
+            });
+            setIsProcessing(false);
+            return;
+          }
+        }
       }
+    } catch {
+      // Si la API de backend no está montada localmente o falla, continuar al fallback local
+    }
 
-      // Extract Amount
-      const amountMatch = inputText.match(/(\d+([.,]\d{1,2})?)/);
-      const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 25.0;
-
-      // Determine Category
-      let categoryId: CategoryId = 'otros';
-      if (lower.includes('super') || lower.includes('mercadona') || lower.includes('carrefour') || lower.includes('comida') || lower.includes('compra')) {
-        categoryId = 'supermercado';
-      } else if (lower.includes('farmacia') || lower.includes('medicina') || lower.includes('salud') || lower.includes('pastillas')) {
-        categoryId = 'farmacia';
-      } else if (lower.includes('impuesto') || lower.includes('irpf') || lower.includes('tasas') || lower.includes('autonomo') || lower.includes('hacienda')) {
-        categoryId = 'impuestos';
-      } else if (lower.includes('ocio') || lower.includes('cine') || lower.includes('cena') || lower.includes('bar') || lower.includes('restaurante') || lower.includes('fiesta')) {
-        categoryId = 'ocio';
-      } else if (lower.includes('transporte') || lower.includes('gasolina') || lower.includes('metro') || lower.includes('bus') || lower.includes('uber') || lower.includes('taxi')) {
-        categoryId = 'transporte';
-      } else if (lower.includes('alquiler') || lower.includes('luz') || lower.includes('agua') || lower.includes('gas') || lower.includes('piso')) {
-        categoryId = 'vivienda';
-      } else if (type === 'ingreso' && (lower.includes('nomina') || lower.includes('salario') || lower.includes('trabajo'))) {
-        categoryId = 'salario';
-      } else if (type === 'ingreso' && (lower.includes('invers') || lower.includes('dividend') || lower.includes('interes'))) {
-        categoryId = 'inversiones';
-      }
-
-      // Payment method
-      let paymentMethod: PaymentMethod = 'tarjeta';
-      if (lower.includes('bizum')) paymentMethod = 'bizum';
-      else if (lower.includes('efectivo') || lower.includes('cash')) paymentMethod = 'efectivo';
-      else if (lower.includes('transferencia') || lower.includes('banco')) paymentMethod = 'transferencia';
-
-      const today = new Date().toISOString().split('T')[0];
-
-      setDetectedTx({
-        type,
-        amount,
-        categoryId,
-        description: inputText,
-        date: today,
-        paymentMethod,
-        notes: 'Añadido con el asistente inteligente IA',
-      });
-
-      setIsProcessing(false);
-    }, 600);
+    // Fallback heurístico inteligente
+    const parsed = fallbackLocalParser(inputText);
+    setDetectedTx(parsed);
+    setIsProcessing(false);
   };
 
-  const handleSimulateReceiptUpload = () => {
+  const handleSimulateReceiptUpload = async () => {
     setIsProcessing(true);
+    const today = new Date().toISOString().split('T')[0];
+    
     setTimeout(() => {
-      const today = new Date().toISOString().split('T')[0];
       setDetectedTx({
         type: 'gasto',
         amount: 48.75,
         categoryId: 'supermercado',
-        description: 'Mercadona - Ticket de compra detectado',
+        description: 'Mercadona - Ticket de compra analizado',
         date: today,
         paymentMethod: 'tarjeta',
         notes: 'Escaneado automático de ticket: Productos frescos, lácteos y verduras.',
       });
       setIsProcessing(false);
-    }, 1000);
+    }, 900);
   };
 
   const handleConfirm = () => {

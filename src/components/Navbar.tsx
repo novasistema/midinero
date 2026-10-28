@@ -5,12 +5,11 @@ import {
   PieChart, 
   BarChart2, 
   PiggyBank, 
-  CalendarCheck,
   Settings, 
   Plus, 
   Sparkles,
-  Lock,
-  Wallet
+  Wallet,
+  LogOut
 } from 'lucide-react';
 import { ControlLogo } from './MiDineroLogo';
 
@@ -19,6 +18,8 @@ interface NavbarProps {
   onTabChange: (tab: string) => void;
   onOpenAddModal: () => void;
   onOpenAiModal: () => void;
+  onLogout?: () => void;
+  userEmail?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,13 +27,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   onOpenAddModal,
   onOpenAiModal,
+  onLogout,
+  userEmail,
 }) => {
   const tabs = [
     { id: 'inicio', label: 'Inicio', icon: Home },
     { id: 'cuentas', label: 'Cuentas', icon: Wallet },
     { id: 'transacciones', label: 'Registros', icon: Receipt },
-    { id: 'tareas', label: 'Tareas', icon: CalendarCheck },
-    { id: 'boveda', label: 'Bóveda', icon: Lock },
     { id: 'informes', label: 'Informes', icon: PieChart },
     { id: 'presupuestos', label: 'Límites', icon: BarChart2 },
     { id: 'ahorros', label: 'Ahorros', icon: PiggyBank },
@@ -45,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo */}
-          <div className="cursor-pointer" onClick={() => onTabChange('inicio')} title="CONTROL - Finanzas y Tareas Diarias">
+          <div className="cursor-pointer" onClick={() => onTabChange('inicio')} title="CONTROL - Finanzas Personales">
             <ControlLogo size="md" />
           </div>
 
@@ -89,6 +90,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Añadir Registro</span>
             </button>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="py-2 px-3 bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 font-bold text-xs rounded-xl border border-slate-800 hover:border-rose-500/30 transition flex items-center gap-1.5"
+                title={`Cerrar sesión ${userEmail ? `(${userEmail})` : ''}`}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">Cerrar Sesión</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -112,6 +124,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl shrink-0 text-rose-400/80 hover:text-rose-300 transition"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-[10px] whitespace-nowrap tracking-tight">Salir</span>
+            </button>
+          )}
         </div>
       </nav>
     </>

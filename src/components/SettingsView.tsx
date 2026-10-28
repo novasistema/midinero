@@ -13,7 +13,9 @@ import {
   Check,
   Layers,
   Tag,
-  Clock
+  LogOut,
+  User,
+  ShieldCheck
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -25,7 +27,8 @@ interface SettingsViewProps {
   onResetData: () => void;
   onClearAllData?: () => void;
   onOpenCategoriesModal?: () => void;
-  onOpenTasksView?: () => void;
+  userEmail?: string;
+  onLogout?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -36,7 +39,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResetData,
   onClearAllData,
   onOpenCategoriesModal,
-  onOpenTasksView,
+  userEmail,
+  onLogout,
 }) => {
   return (
     <div className="space-y-6 pb-20 md:pb-6">
@@ -49,6 +53,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Personaliza moneda, categorías y subcategorías, alertas, tema y copias de seguridad
         </p>
       </div>
+
+      {/* User Session & License Card */}
+      {userEmail && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-[#E3A82B]/10 text-[#E3A82B] border border-[#E3A82B]/20">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">Sesión Activa</span>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Licencia Activa
+                </span>
+              </div>
+              <p className="text-sm font-semibold text-slate-200 mt-0.5">{userEmail}</p>
+              <p className="text-[11px] text-slate-400">Vértice Lab • Mi Dinero (app_slug: midinero)</p>
+            </div>
+          </div>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-950/40 hover:bg-rose-950/70 border border-rose-500/30 text-rose-300 transition flex items-center justify-center gap-2 self-start sm:self-auto cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar Sesión
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Preferences Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
@@ -243,10 +278,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </span>
           </div>
           <p className="text-xs font-bold text-teal-400 uppercase tracking-widest">
-            Finanzas y Tareas Diarias
+            Finanzas Personales
           </p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Plataforma todo-en-uno para administrar tus finanzas personales, billeteras y bancos, bóveda protegida de contraseñas, subcategorías de gastos y agenda de tareas semanales con alarmas y recordatorios de tiempo.
+            Plataforma integral para administrar tus finanzas personales, billeteras virtuales y cuentas bancarias, presupuestos por categorías y subcategorías, metas de ahorro e inversiones, e informes detallados.
           </p>
         </div>
       </div>
