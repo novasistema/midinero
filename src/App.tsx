@@ -40,7 +40,11 @@ import { AccessDeniedView } from './components/auth/AccessDeniedView';
 import { 
   supabase, 
   verifyUserAccess, 
-  UserAccessResult 
+  UserAccessResult,
+  closeOtherSessions,
+  isGoogleOnlyUser,
+  OAUTH_PENDING_KEY,
+  LOGIN_NOTICE_KEY,
 } from './services/supabase';
 import { Session } from '@supabase/supabase-js';
 
@@ -183,9 +187,34 @@ export default function App() {
     setSession(currentSession);
     setAccessStatus('checking');
 
+    // Volviendo de "Entrar con Google": aplicar la regla de una sola sesión activa
+    let cameFromOAuth = false;
+    try {
+      cameFromOAuth = sessionStorage.getItem(OAUTH_PENDING_KEY) === '1';
+      sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    } catch {}
+    if (cameFromOAuth) {
+      await closeOtherSessions();
+    }
+
     // Consultar tabla 'accesos' con app_slug = 'midinero'
     const res = await verifyUserAccess(currentSession.user.id);
     setAccessResult(res);
+
+    // Cuenta de Google sin licencia (no la dimos de alta nosotros): cerrar sesión y avisar en el login
+    if (!res.hasAccess && res.reason === 'no_record' && isGoogleOnlyUser(currentSession.user)) {
+      try {
+        sessionStorage.setItem(
+          LOGIN_NOTICE_KEY,
+          'Esa cuenta de Google no tiene acceso a Mi Dinero. Entrá con el mismo email con el que compraste tu licencia, o adquirí tu acceso en verticelab.com.ar.'
+        );
+      } catch {}
+      await supabase.auth.signOut();
+      setSession(null);
+      setAccessStatus('no_session');
+      setAuthLoading(false);
+      return;
+    }
 
     if (res.hasAccess) {
       setAccessStatus('allowed');
