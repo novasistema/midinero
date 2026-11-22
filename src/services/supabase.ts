@@ -114,3 +114,53 @@ export async function closeOtherSessions() {
     console.warn('No se pudieron cerrar otras sesiones:', err);
   }
 }
+
+/**
+ * Marca que el usuario salió a Google para loguearse, así al volver
+ * cerramos las otras sesiones (misma regla que con email y contraseña).
+ */
+export const OAUTH_PENDING_KEY = 'midinero_oauth_pending';
+export const LOGIN_NOTICE_KEY = 'midinero_login_notice';
+
+export async function signInWithGoogle() {
+  try {
+    sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
+  } catch {}
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { prompt: 'select_account' },
+    },
+  });
+}
+
+/**
+ * Lee (y limpia de la URL) el error que devuelve Supabase cuando el login con Google falla.
+ * Con el registro público desactivado, una cuenta de Google que no existe en Auth vuelve
+ * con error_description = "Signups not allowed for this instance".
+ */
+export function consumeOAuthErrorFromUrl(): string | null {
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const error = search.get('error') || hash.get('error');
+  if (!error) return null;
+  const description = search.get('error_description') || hash.get('error_description') || '';
+
+  try {
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {}
+
+  if (/signup/i.test(description) || /not allowed/i.test(description)) {
+    return 'Esa cuenta de Google no tiene acceso a Mi Dinero. Entrá con el mismo email con el que compraste tu licencia, o adquirí tu acceso en verticelab.com.ar.';
+  }
+  return description
+    ? `No se pudo iniciar sesión con Google: ${description}`
+    : 'No se pudo iniciar sesión con Google. Probá de nuevo.';
+}
+
+/** Devuelve true si el usuario entró con Google y no tiene otra forma de login. */
+export function isGoogleOnlyUser(user: User): boolean {
+  const providers = (user.identities || []).map((i) => i.provider);
+  return providers.length > 0 && providers.every((p) => p === 'google');
+}
